@@ -103,7 +103,7 @@ def get_vector_store(chunks):
 def get_conversation_chain(vector_store, model_choice):
     if model_choice == "grok":
         llm = ChatGroq(
-            model_name="mixtral-8x7b-32768", 
+            model_name="Gemma2-9b-It", 
             temperature=0.7,
             groq_api_key=os.getenv("GROQ_API_KEY")
         )
