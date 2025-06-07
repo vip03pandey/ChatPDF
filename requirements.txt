@@ -10,3 +10,4 @@ faiss-cpu
 streamlit-chat
 sentence-transformers
 python-docx
+langchain_groq

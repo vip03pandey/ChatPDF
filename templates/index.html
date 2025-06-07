@@ -94,15 +94,29 @@
       align-items: center;
       margin-top: 10px;
     }
+    select {
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  margin-top: 10px;
+  margin-bottom: 10px;
+  }
+
   </style>  
 </head>
 <body>
   <h2>Upload Documents</h2>
   <form id="uploadForm" enctype="multipart/form-data">
     <input type="file" name="files" multiple>
+    <label for="model_choice">Choose a model:</label>
+    <select name="model_choice" id="model_choice">
+      <option value="deepseek">DeepSeek</option>
+      <option value="grok">Groq (Mixtral)</option>
+    </select>
+    <br><br>
     <button type="submit">Process Files</button>
   </form>
-
+  
   <h2>Chat</h2>
   <div id="chat-box"></div>
   <input type="text" id="userInput" placeholder="Ask something..." style="width: 80%;">

@@ -4,7 +4,6 @@ from PyPDF2 import PdfReader
 import docx
 import pandas as pd
 from dotenv import load_dotenv
-
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
@@ -12,7 +11,7 @@ from langchain_community.vectorstores import FAISS
 from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
 from langchain.prompts import PromptTemplate
-from langchain.chains.qa_with_sources import load_qa_with_sources_chain
+from langchain_groq import ChatGroq
 
 app = Flask(__name__)
 load_dotenv()
@@ -39,16 +38,15 @@ PROMPT = PromptTemplate(
     input_variables=["context", "question", "chat_history"]
 )
 
-
 @app.route('/')
 def index():
     return render_template('index.html')
-
 
 @app.route('/upload', methods=['POST'])
 def upload_files():
     global conversation_chain, chat_history
     uploaded_files = request.files.getlist("files")
+    model_choice = request.form.get("model_choice", "deepseek")
 
     if not uploaded_files:
         return jsonify({"status": "error", "message": "No files uploaded."})
@@ -65,11 +63,10 @@ def upload_files():
 
     text_chunks = get_text_chunks(file_text)
     vector_store = get_vector_store(text_chunks)
-    conversation_chain = get_conversation_chain(vector_store)
+    conversation_chain = get_conversation_chain(vector_store, model_choice)
     chat_history = []
 
     return jsonify({"status": "success", "message": "Files processed."})
-
 
 @app.route('/ask', methods=['POST'])
 def ask():
@@ -83,54 +80,52 @@ def ask():
     messages = [{"type": m.type, "content": m.content} for m in history]
     return jsonify({"answer": answer, "history": messages})
 
-
 def get_pdf_text(pdf_file):
     reader = PdfReader(pdf_file)
     return ''.join([page.extract_text() or '' for page in reader.pages])
-
 
 def get_docx_text(file):
     doc = docx.Document(file)
     return '\n'.join([p.text for p in doc.paragraphs])
 
-
 def get_csv_text(file):
     df = pd.read_csv(file)
     return df.to_string()
-
 
 def get_text_chunks(text):
     splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=100, separator="\n", length_function=len)
     return splitter.split_text(text)
 
-
 def get_vector_store(chunks):
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     return FAISS.from_texts(chunks, embeddings)
 
-
-def get_conversation_chain(vector_store):
-    llm = HuggingFaceEndpoint(
-        repo_id="deepseek-ai/DeepSeek-R1",
-        task="text-generation",
-        temperature=0.7
-    )
-    chat_model = ChatHuggingFace(llm=llm)
+def get_conversation_chain(vector_store, model_choice):
+    if model_choice == "grok":
+        llm = ChatGroq(
+            model_name="mixtral-8x7b-32768", 
+            temperature=0.7,
+            groq_api_key=os.getenv("GROQ_API_KEY")
+        )
+    else:  # Default to DeepSeek
+        llm = HuggingFaceEndpoint(
+            repo_id="deepseek-ai/DeepSeek-R1",
+            task="text-generation",
+            temperature=0.7
+        )
+        llm = ChatHuggingFace(llm=llm)
 
     memory = ConversationBufferMemory(
         memory_key="chat_history",
         return_messages=True
     )
 
-    # 👇 Use the prompt in the chain
     return ConversationalRetrievalChain.from_llm(
-        llm=chat_model,
+        llm=llm,
         retriever=vector_store.as_retriever(search_type="similarity"),
         memory=memory,
         combine_docs_chain_kwargs={"prompt": PROMPT}
     )
-
-
 
 if __name__ == '__main__':
     app.run(debug=True)
